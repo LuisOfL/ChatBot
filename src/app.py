@@ -88,6 +88,7 @@ body{
     scrollbar-color: #303030 transparent;  
 }
 
+
 /* Mensajes */
 .row{display:flex;width:100%}
 .row.left{justify-content:flex-start}
@@ -148,21 +149,6 @@ body{
     cursor:pointer;
 }
 .button:disabled{opacity:.6;cursor:not-allowed}
-
-/* Estilos para el micrófono activo */
-.button.mic-active {
-    background: #ff4444;
-    border-color: #ff4444;
-    color: white;
-    animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
 @media(max-width:768px){.msg{max-width:88%}}
 """
 
@@ -172,11 +158,12 @@ def ts_now() -> str:
 @component
 def ChatApp():
     messages, set_messages = hooks.use_state([
-        {"id": 1, "sender": "other", "text": "¡Hola! Puedes usar el micrófono para hablar conmigo", "ts": ts_now()},
-        {"id": 2, "sender": "me", "text": "Prueba de mensaje", "ts": ts_now()},
+        {"id": 1, "sender": "other", "text": "Lorem Ipsum", "ts": ts_now()},
+        {"id": 2, "sender": "me",    "text": "Prueba 2", "ts": ts_now()},
+        {"id": 3, "sender": "me",    "text": "Prueba", "ts": ts_now()},
+        {"id": 4, "sender": "me",    "text": "Prueba4", "ts": ts_now()},
     ])
     text, set_text = hooks.use_state("")
-    is_listening, set_is_listening = hooks.use_state(False)
 
     def send():
         t = text.strip()
@@ -193,7 +180,9 @@ def ChatApp():
         set_messages(_append)
         set_text("")
 
+
     def on_key_down(e):
+        # Ignora eventos de composición (IME) que no deben enviar
         if e.get("isComposing"):
             return
 
@@ -207,101 +196,13 @@ def ChatApp():
         no_shift = not (e.get("shiftKey") or False)
 
         if is_enter and no_shift:
+            # ReactPy: prevenir default con acceso tipo dict si existe
             try:
                 e["preventDefault"]()
             except Exception:
                 pass
             send()
 
-    def toggle_microphone():
-        if is_listening:
-            stop_listening()
-        else:
-            start_listening()
-
-    def start_listening():
-        set_is_listening(True)
-        
-        # Script para iniciar el reconocimiento de voz
-        recognition_script = """
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            alert('El reconocimiento de voz no es compatible con tu navegador. Prueba con Chrome.');
-            return;
-        }
-        
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = 'es-ES';
-        
-        recognition.onstart = function() {
-            console.log('Micrófono activado');
-        };
-        
-        recognition.onresult = function(event) {
-            let transcript = '';
-            for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    transcript += event.results[i][0].transcript;
-                } else {
-                    transcript += event.results[i][0].transcript;
-                }
-            }
-            
-            // Enviar el texto al input
-            const input = document.querySelector('.input');
-            if (input) {
-                input.value = transcript;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        };
-        
-        recognition.onerror = function(event) {
-            console.error('Error en reconocimiento:', event.error);
-            if (event.error === 'not-allowed') {
-                alert('Permiso de micrófono denegado. Por favor, permite el acceso al micrófono.');
-            }
-        };
-        
-        recognition.onend = function() {
-            console.log('Micrófono desactivado');
-            // Enviar señal para actualizar el estado del botón
-            window.dispatchEvent(new CustomEvent('recognitionEnded'));
-        };
-        
-        recognition.start();
-        """
-        
-        # Ejecutar el script de reconocimiento
-        html.script(recognition_script)
-
-    def stop_listening():
-        set_is_listening(False)
-        # Script para detener el reconocimiento
-        stop_script = """
-        if (window.currentRecognition) {
-            window.currentRecognition.stop();
-        }
-        """
-        html.script(stop_script)
-
-    # Efecto para manejar el fin del reconocimiento
-    @hooks.use_effect
-    def setup_recognition_listener():
-        def handle_recognition_ended(event):
-            set_is_listening(False)
-        
-        # Agregar event listener global
-        html.script("""
-        window.addEventListener('recognitionEnded', function() {
-            // Este evento será manejado por el efecto de ReactPy
-        });
-        """)
-        
-        # Cleanup
-        return lambda: None
 
     def bubble(m):
         side = "right" if m["sender"] == "me" else "left"
@@ -318,9 +219,8 @@ def ChatApp():
             html.div({"class_name": "header"},
                 html.div({"class_name": "avatar"}),
                 html.div({"class_name": "title"},
-                    html.span({"class_name": "name"}, "Chat con Voz"),
-                    html.span({"class_name": "status"}, 
-                             "Escuchando..." if is_listening else "Listo para hablar"),
+                    html.span({"class_name": "name"}, "Chat"),
+                    html.span({"class_name": "status"}, "Funcionando"),
                 ),
             ),
             html.div({"class_name": "chat"},
@@ -336,38 +236,33 @@ def ChatApp():
                     html.input({
                         "class_name": "input",
                         "type": "text",
-                        "placeholder": "Escribe un mensaje o usa el micrófono...",
+                        "placeholder": "Escribe un mensaje…",
                         "value": text,
                         "on_change": lambda e: set_text(e["target"]["value"]),
                         "on_key_down": on_key_down,
                         "autocomplete": "off",
                     }),
-                    html.div({"style": {"display": "flex", "gap": "8px"}},
-                        html.button({
-                            "class_name": f"button {'mic-active' if is_listening else ''}",
-                            "type": "button",
-                            "title": "Microfono",
-                            "on_click": toggle_microphone,
-                        }, "🎤" if not is_listening else "🔴"),
-                        html.button({
-                            "class_name": "button",
-                            "type": "button",
-                            "title": "Agregar imagen",
-                            "on_click": lambda e: print("Botón de imagen presionado"),
-                        }, "📎"),
-                        html.button({
-                            "class_name": "button",
-                            "type": "button",       
-                            "on_click": lambda e: send(),  
-                        }, "Enviar"),
+                html.div(
+                    { "style": {"display": "flex", "gap": "8px"} },  # props (opcional)
+                    html.button({
+                    "class_name": "button",
+                    "type": "button",
+                    "on_click": lambda e: send(),
+                    }, "Enviar"),
+                    html.button({
+                    "class_name": "button",
+                    "type": "button",
+                    "on_click": lambda e: print("Botón + presionado"),
+                    }, "+"),
+                    html.button({
+                    "class_name": "button",
+                    "type": "button",
+                    "on_click": lambda e: print("Botón + presionado"),
+                    }, "🎤"),
                     )
                 )
             )
-        ),
-        # Script para manejar el estado del reconocimiento
-        html.script(f"""
-            window.isListening = {str(is_listening).lower()};
-        """)
+        )
     )
 
 app = FastAPI()
